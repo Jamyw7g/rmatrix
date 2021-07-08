@@ -1,6 +1,6 @@
 [package]
 name = "rmatrix"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -8,9 +8,18 @@ edition = "2018"
 [dependencies]
 crossterm = "0.20.0"
 getopts = "0.2.21"
-rand = "0.8.4"
+nanorand = "0.6.0"
 
 
 [profile.release]
 codegen-units = 1
 lto = "thin"
+
+
+[dev-dependencies]
+nanorand = "0.6.0"
+rand = "0.8.4"
+
+
+[[bench]]
+name = "nano_and_rand"

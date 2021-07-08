@@ -1,4 +1,4 @@
-use rand::{prelude::ThreadRng, Rng};
+use nanorand::{WyRand, Rng};
 
 pub const CH_BEGIN: i32 = 33;
 pub const CH_END: i32 = 127;
@@ -20,7 +20,7 @@ impl Default for Item {
 }
 
 pub struct Matrix {
-    rng: ThreadRng,
+    rng: WyRand,
 
     buffer: Vec<Item>,
     spaces: Vec<u16>,
@@ -29,7 +29,7 @@ pub struct Matrix {
 
 impl Matrix {
     pub fn new(cols: usize, rows: usize) -> Self {
-        let mut rng = rand::thread_rng();
+        let mut rng = WyRand::new();
         let mut buffer = vec![Item::default(); (rows + 1) * cols];
         let mut spaces = vec![0; cols];
         let mut lengths = vec![0; cols];
@@ -37,8 +37,8 @@ impl Matrix {
         let lines = rows as u16;
         for j in (0..cols).step_by(2) {
             buffer[to_idx(1, j, cols)].val = BLANK;
-            lengths[j] = 3 + rng.gen_range(0..lines as u16 - 3);
-            spaces[j] = 1 + rng.gen_range(0..lines as u16);
+            lengths[j] = 3 + rng.generate_range(0..lines as u16 - 3);
+            spaces[j] = 1 + rng.generate_range(0..lines as u16);
         }
 
         Self {
@@ -71,9 +71,9 @@ impl Matrix {
             if buffer[idx_0j].val == -1 && buffer[idx_1j].val == BLANK && spaces[j] > 0 {
                 spaces[j] -= 1;
             } else if buffer[idx_0j].val == -1 && buffer[idx_1j].val == BLANK {
-                lengths[j] = 3 + rng.gen_range(0..lines as u16 - 3);
-                buffer[idx_0j].val = rng.gen_range(CH_BEGIN..CH_END);
-                spaces[j] = 1 + rng.gen_range(0..lines as u16);
+                lengths[j] = 3 + rng.generate_range(0..lines as u16 - 3);
+                buffer[idx_0j].val = rng.generate_range(CH_BEGIN..CH_END);
+                spaces[j] = 1 + rng.generate_range(0..lines as u16);
             }
             i = 0;
             first_done = false;
@@ -100,7 +100,7 @@ impl Matrix {
                     continue;
                 }
                 buffer[to_idx(i, j, cols)] = Item {
-                    val: rng.gen_range(CH_BEGIN..CH_END),
+                    val: rng.generate_range(CH_BEGIN..CH_END),
                     is_head: true,
                 };
                 if y > lengths[j] || first_done {

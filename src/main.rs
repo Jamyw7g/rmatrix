@@ -11,7 +11,7 @@ use crossterm::{
     Result as CTResult,
 };
 use getopts::Options;
-use rand::Rng;
+use nanorand::{WyRand, Rng};
 
 mod matrix;
 use matrix::*;
@@ -91,7 +91,7 @@ fn main() -> CTResult<()> {
 
     init()?;
     let mut stdout = io::stdout();
-    let mut rng = rand::thread_rng();
+    let mut rng = WyRand::new();
     loop {
         next = matrix.next();
         normal.clear();
@@ -108,7 +108,7 @@ fn main() -> CTResult<()> {
                     normal.push(char_val);
                 }
             } else {
-                color = BOW_COLORS[rng.gen_range(0..6)];
+                color = BOW_COLORS[rng.generate_range(0..6)];
                 if item.val == -1 || item.val == BLANK {
                     print!(" ");
                 } else if item.is_head {
