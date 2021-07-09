@@ -1,4 +1,4 @@
-use nanorand::{WyRand, Rng};
+use nanorand::{Rng, WyRand};
 
 pub const CH_BEGIN: i32 = 33;
 pub const CH_END: i32 = 127;

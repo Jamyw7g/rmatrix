@@ -1,4 +1,12 @@
-use std::{env, io, panic::set_hook, time::Duration};
+use std::{
+    env, io,
+    panic::set_hook,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
+    time::Duration,
+};
 
 use crossterm::{
     cursor::{Hide, MoveToColumn, MoveToRow, Show},
@@ -11,7 +19,8 @@ use crossterm::{
     Result as CTResult,
 };
 use getopts::Options;
-use nanorand::{WyRand, Rng};
+use nanorand::{Rng, WyRand};
+use signal_hook::{consts::TERM_SIGNALS, flag::register};
 
 mod matrix;
 use matrix::*;
@@ -44,6 +53,10 @@ fn main() -> CTResult<()> {
             println!();
         }
     }));
+    let term_flag = Arc::new(AtomicBool::new(false));
+    for &sig in TERM_SIGNALS {
+        register(sig, term_flag.clone()).unwrap();
+    }
 
     let args: Vec<_> = env::args().collect();
     let mut opts = Options::new();
@@ -92,7 +105,7 @@ fn main() -> CTResult<()> {
     init()?;
     let mut stdout = io::stdout();
     let mut rng = WyRand::new();
-    loop {
+    while !term_flag.load(Ordering::Relaxed) {
         next = matrix.next();
         normal.clear();
         execute!(stdout, MoveToRow(0), MoveToColumn(0))?;
