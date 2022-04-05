@@ -1,6 +1,5 @@
 use std::{
     env, io,
-    panic::set_hook,
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc,
@@ -9,13 +8,11 @@ use std::{
 };
 
 use crossterm::{
-    cursor::{Hide, MoveToColumn, MoveToRow, Show},
+    cursor::{MoveToColumn, MoveToRow},
     event::{poll, read, Event, KeyCode},
     execute,
     style::{Color, Stylize},
-    terminal::{
-        self, disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
-    },
+    terminal,
     Result as CTResult,
 };
 use getopts::Options;
@@ -23,7 +20,9 @@ use nanorand::{Rng, WyRand};
 use signal_hook::{consts::TERM_SIGNALS, flag::register};
 
 mod matrix;
+mod screen;
 use matrix::*;
+use screen::RawScreen;
 
 static BOW_COLORS: [Color; 6] = [
     Color::Green,
@@ -35,24 +34,6 @@ static BOW_COLORS: [Color; 6] = [
 ];
 
 fn main() -> CTResult<()> {
-    set_hook(Box::new(|info| {
-        reset().unwrap();
-
-        if let Some(location) = info.location() {
-            print!(
-                "Panic in File `{}` at Ln {}, Col {}: ",
-                location.file(),
-                location.line(),
-                location.column()
-            );
-        }
-
-        if let Some(s) = info.payload().downcast_ref::<String>() {
-            println!("{}", s);
-        } else {
-            println!();
-        }
-    }));
     let term_flag = Arc::new(AtomicBool::new(false));
     for &sig in TERM_SIGNALS {
         register(sig, term_flag.clone()).unwrap();
@@ -102,7 +83,7 @@ fn main() -> CTResult<()> {
     let mut matrix = Matrix::new(cols as usize, rows as usize);
     let (mut char_val, mut next);
 
-    init()?;
+    let _screen = RawScreen::new()?;
     let mut stdout = io::stdout();
     let mut rng = WyRand::new();
     while !term_flag.load(Ordering::Relaxed) {
@@ -181,8 +162,7 @@ fn main() -> CTResult<()> {
             }
         }
     }
-
-    reset()
+    Ok(())
 }
 
 fn print_usage(opts: Options) {
@@ -203,12 +183,3 @@ fn print_usage(opts: Options) {
     println!("{}", opts.usage(&brief));
 }
 
-fn init() -> CTResult<()> {
-    execute!(io::stdout(), EnterAlternateScreen, Hide)?;
-    enable_raw_mode()
-}
-
-fn reset() -> CTResult<()> {
-    execute!(io::stdout(), Show, LeaveAlternateScreen)?;
-    disable_raw_mode()
-}
