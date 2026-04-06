@@ -1,7 +1,9 @@
-use std::io;
+use crossterm::cursor::{Hide, Show};
 use crossterm::execute;
-use crossterm::terminal::{enable_raw_mode, disable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen};
-use crossterm::cursor::{Show, Hide};
+use crossterm::terminal::{
+    disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
+};
+use std::io;
 
 pub struct RawScreen;
 
@@ -10,7 +12,7 @@ impl RawScreen {
         execute!(io::stdout(), EnterAlternateScreen, Hide)?;
         enable_raw_mode()?;
         Ok(Self)
-    } 
+    }
 }
 
 impl Drop for RawScreen {

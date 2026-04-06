@@ -1,5 +1,6 @@
 use std::{
-    env, io,
+    env,
+    io::{self, Write},
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc,
@@ -8,12 +9,9 @@ use std::{
 };
 
 use crossterm::{
-    cursor::{MoveToColumn, MoveToRow},
     event::{poll, read, Event, KeyCode},
-    execute,
-    style::{Color, Stylize},
-    terminal,
-    Result as CTResult,
+    style::Color,
+    terminal, Result as CTResult,
 };
 use getopts::Options;
 use nanorand::{Rng, WyRand};
@@ -32,6 +30,7 @@ static BOW_COLORS: [Color; 6] = [
     Color::Yellow,
     Color::Magenta,
 ];
+const ANSI_RESET: &str = "\x1b[0m";
 
 fn main() -> CTResult<()> {
     let term_flag = Arc::new(AtomicBool::new(false));
@@ -80,43 +79,58 @@ fn main() -> CTResult<()> {
 
     let (cols, rows) = terminal::size()?;
     let mut normal = String::new();
+    let mut frame_buf = String::new();
     let mut matrix = Matrix::new(cols as usize, rows as usize);
     let (mut char_val, mut next);
 
     let _screen = RawScreen::new()?;
     let mut stdout = io::stdout();
     let mut rng = WyRand::new();
+    let mut rainbow_bits = 0u64;
+    let mut rainbow_bits_left = 0u8;
     while !term_flag.load(Ordering::Relaxed) {
         next = matrix.next();
         normal.clear();
-        execute!(stdout, MoveToRow(0), MoveToColumn(0))?;
+        frame_buf.clear();
+        frame_buf.push_str("\x1b[H");
+        let mut active_color: Option<Color> = None;
         for item in next {
-            char_val = item.val as u8 as char;
+            char_val = item.val as char;
             if !rainbow {
-                if item.val == -1 || item.val == BLANK {
+                if item.val == EMPTY || item.val == BLANK {
                     normal.push(' ');
-                } else if item.is_head {
-                    print!("{}{}", normal.clone().with(color), char_val);
+                } else if item.is_head() {
+                    push_run_with_color(&mut frame_buf, &mut active_color, color, &normal);
                     normal.clear();
+                    reset_color(&mut frame_buf, &mut active_color);
+                    frame_buf.push(char_val);
                 } else {
                     normal.push(char_val);
                 }
             } else {
-                color = BOW_COLORS[rng.generate_range(0..6)];
-                if item.val == -1 || item.val == BLANK {
-                    print!(" ");
-                } else if item.is_head {
-                    print!("{}", char_val);
+                color = BOW_COLORS
+                    [next_rainbow_color_idx(&mut rng, &mut rainbow_bits, &mut rainbow_bits_left)];
+                if item.val == EMPTY || item.val == BLANK {
+                    reset_color(&mut frame_buf, &mut active_color);
+                    frame_buf.push(' ');
+                } else if item.is_head() {
+                    reset_color(&mut frame_buf, &mut active_color);
+                    frame_buf.push(char_val);
                 } else {
-                    print!("{}", char_val.with(color));
+                    set_color(&mut frame_buf, &mut active_color, color);
+                    frame_buf.push(char_val);
                 }
             }
         }
         if !rainbow {
-            print!("{}", normal.clone().with(color));
+            push_run_with_color(&mut frame_buf, &mut active_color, color, &normal);
         }
+        reset_color(&mut frame_buf, &mut active_color);
+        stdout.write_all(frame_buf.as_bytes())?;
+        stdout.flush()?;
 
-        if poll(Duration::from_millis(10 * speed))? {
+        let delay_ms = (10 * speed).max(1);
+        if poll(Duration::from_millis(delay_ms))? {
             match read()? {
                 Event::Key(e) => match e.code {
                     KeyCode::Char('q' | 'Q') => break,
@@ -165,6 +179,66 @@ fn main() -> CTResult<()> {
     Ok(())
 }
 
+#[inline]
+fn push_run_with_color(
+    frame_buf: &mut String,
+    active_color: &mut Option<Color>,
+    color: Color,
+    text: &str,
+) {
+    if text.is_empty() {
+        return;
+    }
+    set_color(frame_buf, active_color, color);
+    frame_buf.push_str(text);
+}
+
+#[inline]
+fn set_color(frame_buf: &mut String, active_color: &mut Option<Color>, color: Color) {
+    if *active_color == Some(color) {
+        return;
+    }
+    frame_buf.push_str(color_ansi(color));
+    *active_color = Some(color);
+}
+
+#[inline]
+fn reset_color(frame_buf: &mut String, active_color: &mut Option<Color>) {
+    if active_color.is_some() {
+        frame_buf.push_str(ANSI_RESET);
+        *active_color = None;
+    }
+}
+
+#[inline]
+fn color_ansi(color: Color) -> &'static str {
+    match color {
+        Color::Green => "\x1b[32m",
+        Color::Red => "\x1b[31m",
+        Color::Blue => "\x1b[34m",
+        Color::Cyan => "\x1b[36m",
+        Color::Yellow => "\x1b[33m",
+        Color::Magenta => "\x1b[35m",
+        _ => "\x1b[32m",
+    }
+}
+
+#[inline]
+fn next_rainbow_color_idx(rng: &mut WyRand, bit_pool: &mut u64, bits_left: &mut u8) -> usize {
+    loop {
+        if *bits_left < 3 {
+            *bit_pool = rng.generate::<u64>();
+            *bits_left = 64;
+        }
+        let idx = (*bit_pool & 0b111) as usize;
+        *bit_pool >>= 3;
+        *bits_left -= 3;
+        if idx < BOW_COLORS.len() {
+            return idx;
+        }
+    }
+}
+
 fn print_usage(opts: Options) {
     let brief = format!(
         "{} {}\nUsage: {} [options]\n{}",
@@ -182,4 +256,3 @@ fn print_usage(opts: Options) {
     );
     println!("{}", opts.usage(&brief));
 }
-
